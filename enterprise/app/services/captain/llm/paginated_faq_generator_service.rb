@@ -28,6 +28,7 @@ class Captain::Llm::PaginatedFaqGeneratorService < Llm::LegacyBaseOpenAiService
   end
 
   # Method to check if we should continue processing
+  # rubocop:disable Metrics/CyclomaticComplexity -- multiple independent stop conditions
   def should_continue_processing?(last_chunk_result)
     # Stop if we've hit the maximum iterations
     return false if @iterations_completed >= MAX_ITERATIONS
@@ -47,6 +48,7 @@ class Captain::Llm::PaginatedFaqGeneratorService < Llm::LegacyBaseOpenAiService
     # Continue processing
     true
   end
+  # rubocop:enable Metrics/CyclomaticComplexity
 
   private
 
@@ -179,7 +181,7 @@ class Captain::Llm::PaginatedFaqGeneratorService < Llm::LegacyBaseOpenAiService
     content = response.dig('choices', 0, 'message', 'content')
     return [] if content.nil?
 
-    JSON.parse(content.strip).fetch('faqs', [])
+    JSON.parse(Llm::JsonContent.payload_from_llm_message(content)).fetch('faqs', [])
   rescue JSON::ParserError => e
     Rails.logger.error "Error parsing response: #{e.message}"
     []
@@ -189,7 +191,7 @@ class Captain::Llm::PaginatedFaqGeneratorService < Llm::LegacyBaseOpenAiService
     content = response.dig('choices', 0, 'message', 'content')
     return { 'faqs' => [], 'has_content' => false } if content.nil?
 
-    JSON.parse(content.strip)
+    JSON.parse(Llm::JsonContent.payload_from_llm_message(content))
   rescue JSON::ParserError => e
     Rails.logger.error "Error parsing chunk response: #{e.message}"
     { 'faqs' => [], 'has_content' => false }

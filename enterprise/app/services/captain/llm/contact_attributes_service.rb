@@ -52,7 +52,7 @@ class Captain::Llm::ContactAttributesService < Llm::BaseAiService
   def parse_response(content)
     return [] if content.nil?
 
-    JSON.parse(content.strip).fetch('attributes', [])
+    JSON.parse(Llm::JsonContent.payload_from_llm_message(content)).fetch('attributes', [])
   rescue JSON::ParserError => e
     Rails.logger.error "Error in parsing GPT processed response: #{e.message}"
     []

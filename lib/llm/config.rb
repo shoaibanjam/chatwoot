@@ -34,8 +34,14 @@ module Llm::Config
       RubyLLM.configure do |config|
         config.openai_api_key = system_api_key if system_api_key.present?
         config.openai_api_base = openai_endpoint.chomp('/') if openai_endpoint.present?
+        # Captain embeddings use RubyLLM's Ollama provider (OpenAI-compatible /v1 API shape).
+        config.ollama_api_base = ollama_api_base_url
         config.logger = Rails.logger
       end
+    end
+
+    def ollama_api_base_url
+      openai_endpoint.present? ? openai_endpoint.chomp('/') : "#{LlmConstants::OPENAI_API_ENDPOINT}/v1"
     end
 
     def system_api_key

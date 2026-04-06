@@ -5,8 +5,9 @@ class Captain::Tools::FirecrawlService
   end
 
   def perform(url, webhook_url, crawl_limit = 10)
+    Rails.logger.info "Crawling URL: #{url} with webhook URL: #{webhook_url} and crawl limit: #{crawl_limit}"
     HTTParty.post(
-      'https://api.firecrawl.dev/v1/crawl',
+      'http://localhost:3002/v1/crawl',
       body: crawl_payload(url, webhook_url, crawl_limit),
       headers: headers
     )

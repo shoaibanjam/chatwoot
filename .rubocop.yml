@@ -18,6 +18,7 @@ Metrics/ClassLength:
   Exclude:
     - 'app/models/message.rb'
     - 'app/models/conversation.rb'
+    - 'enterprise/app/services/captain/llm/paginated_faq_generator_service.rb'
 
 Metrics/MethodLength:
   Max: 19

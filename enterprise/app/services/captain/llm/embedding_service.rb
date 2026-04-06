@@ -3,6 +3,9 @@ class Captain::Llm::EmbeddingService
 
   class EmbeddingsError < StandardError; end
 
+  # pgvector columns (captain_assistant_responses, article_embeddings) use vector(1536).
+  STORED_EMBEDDING_DIMENSIONS = 1536
+
   def initialize(account_id: nil)
     Llm::Config.initialize!
     @account_id = account_id
@@ -17,14 +20,33 @@ class Captain::Llm::EmbeddingService
     return [] if content.blank?
 
     instrument_embedding_call(instrumentation_params(content, model)) do
-      RubyLLM.embed(content, model: model).vectors
+      embedding = RubyLLM.embed(
+        content,
+        model: model,
+        provider: :ollama,
+        assume_model_exists: true
+      ).vectors
+      normalize_embedding_dimensions(embedding)
     end
-  rescue RubyLLM::Error => e
+  rescue RubyLLM::Error, RubyLLM::ModelNotFoundError => e
     Rails.logger.error "Embedding API Error: #{e.message}"
     raise EmbeddingsError, "Failed to create an embedding: #{e.message}"
   end
 
   private
+
+  def normalize_embedding_dimensions(embedding)
+    return embedding if embedding.blank? || !embedding.is_a?(Array)
+
+    dim = STORED_EMBEDDING_DIMENSIONS
+    if embedding.length < dim
+      embedding + Array.new(dim - embedding.length, 0.0)
+    elsif embedding.length > dim
+      embedding.first(dim)
+    else
+      embedding
+    end
+  end
 
   def instrumentation_params(content, model)
     {

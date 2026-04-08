@@ -47,6 +47,47 @@ RSpec.describe Captain::Conversation::ResponseBuilderJob, type: :job do
         account.reload
         expect(account.usage_limits[:captain][:responses][:consumed]).to eq(1)
       end
+
+      it 'creates an input_select message when interactive has two or more items' do
+        allow(mock_llm_chat_service).to receive(:generate_response).and_return(
+          'response' => 'Pick one.',
+          'interactive' => {
+            'body' => 'Choose a size',
+            'items' => [
+              { 'title' => 'Small', 'value' => 'size_small' },
+              { 'title' => 'Large', 'value' => 'size_large' }
+            ]
+          }
+        )
+
+        described_class.perform_now(conversation, assistant)
+
+        last = conversation.messages.outgoing.last
+        expect(last.content_type).to eq('input_select')
+        expect(last.content).to eq('Choose a size')
+        expect(last.content_attributes['items']).to eq(
+          [
+            { 'title' => 'Small', 'value' => 'size_small' },
+            { 'title' => 'Large', 'value' => 'size_large' }
+          ]
+        )
+      end
+
+      it 'creates a plain message when interactive has only one valid item' do
+        allow(mock_llm_chat_service).to receive(:generate_response).and_return(
+          'response' => 'Only one option.',
+          'interactive' => {
+            'body' => 'Pick',
+            'items' => [{ 'title' => 'Only', 'value' => 'only_one' }]
+          }
+        )
+
+        described_class.perform_now(conversation, assistant)
+
+        last = conversation.messages.outgoing.last
+        expect(last.content_type).to eq('text')
+        expect(last.content).to eq('Only one option.')
+      end
     end
 
     context 'when captain_v2 is enabled' do
@@ -89,6 +130,26 @@ RSpec.describe Captain::Conversation::ResponseBuilderJob, type: :job do
         described_class.perform_now(conversation, assistant)
         account.reload
         expect(account.usage_limits[:captain][:responses][:consumed]).to eq(1)
+      end
+
+      it 'creates an input_select message when v2 returns interactive items' do
+        allow(mock_agent_runner_service).to receive(:generate_response).and_return(
+          response: 'Pick one.',
+          interactive: {
+            body: 'Choose',
+            items: [
+              { title: 'A', value: 'opt_a' },
+              { title: 'B', value: 'opt_b' }
+            ]
+          }
+        )
+
+        described_class.perform_now(conversation, assistant)
+
+        last = conversation.messages.outgoing.last
+        expect(last.content_type).to eq('input_select')
+        expect(last.content).to eq('Choose')
+        expect(last.content_attributes['items'].size).to eq(2)
       end
     end
 

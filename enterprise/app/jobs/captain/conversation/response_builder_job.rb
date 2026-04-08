@@ -1,5 +1,6 @@
 class Captain::Conversation::ResponseBuilderJob < ApplicationJob
   MAX_MESSAGE_LENGTH = 10_000
+  MAX_INTERACTIVE_ITEMS = 10
   retry_on ActiveStorage::FileNotFoundError, attempts: 3, wait: 2.seconds
   retry_on Faraday::BadRequestError, attempts: 3, wait: 2.seconds
 
@@ -86,7 +87,7 @@ class Captain::Conversation::ResponseBuilderJob < ApplicationJob
   end
 
   def handoff_requested?
-    @response['response'] == 'conversation_handoff'
+    @response.with_indifferent_access[:response].to_s == 'conversation_handoff'
   end
 
   def process_action(action)
@@ -111,8 +112,67 @@ class Captain::Conversation::ResponseBuilderJob < ApplicationJob
   end
 
   def create_messages
-    validate_message_content!(@response['response'])
-    create_outgoing_message(@response['response'], agent_name: @response['agent_name'])
+    items = normalized_interactive_items
+    if items.size > 1
+      create_interactive_outgoing_message(items)
+    else
+      text = plain_response_text
+      validate_message_content!(text)
+      create_outgoing_message(text, agent_name: @response.with_indifferent_access[:agent_name])
+    end
+  end
+
+  def plain_response_text
+    @response.with_indifferent_access[:response].to_s
+  end
+
+  def normalized_interactive_items
+    interactive = @response.with_indifferent_access[:interactive]
+    return [] unless interactive.is_a?(Hash)
+
+    items = interactive.with_indifferent_access[:items]
+    return [] unless items.is_a?(Array)
+
+    items.filter_map { |entry| normalize_interactive_item(entry) }.first(MAX_INTERACTIVE_ITEMS)
+  end
+
+  def normalize_interactive_item(entry)
+    return nil unless entry.is_a?(Hash)
+
+    h = entry.with_indifferent_access
+    title = h[:title].to_s.strip
+    value = h[:value].to_s.strip
+    return nil if title.blank? || value.blank?
+
+    { 'title' => title, 'value' => value }
+  end
+
+  def create_interactive_outgoing_message(items)
+    body_text = interactive_body_text
+    validate_message_content!(body_text)
+
+    additional_attrs = {}
+    agent_name = @response.with_indifferent_access[:agent_name]
+    additional_attrs[:agent_name] = agent_name if agent_name.present?
+
+    @conversation.messages.create!(
+      message_type: :outgoing,
+      account_id: account.id,
+      inbox_id: inbox.id,
+      sender: @assistant,
+      content: body_text,
+      content_type: :input_select,
+      content_attributes: { 'items' => items },
+      additional_attributes: additional_attrs
+    )
+  end
+
+  def interactive_body_text
+    r = @response.with_indifferent_access
+    interactive = r[:interactive]
+    return r[:response].to_s unless interactive.is_a?(Hash)
+
+    interactive.with_indifferent_access[:body].presence || r[:response].to_s
   end
 
   def validate_message_content!(content)

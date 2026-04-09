@@ -12,7 +12,7 @@ class Captain::OpenAiMessageBuilderService
 
   def generate_content
     parts = []
-    parts << text_part(@message.content) if @message.content.present?
+    parts << text_part(enrich_content_with_resolved_maps_coordinates(@message.content)) if @message.content.present?
     parts.concat(attachment_parts(@message.attachments)) if @message.attachments.any?
 
     return 'Message without content' if parts.blank?
@@ -84,5 +84,32 @@ class Captain::OpenAiMessageBuilderService
       result = Messages::AudioTranscriptionService.new(attachment).perform
       result[:success] ? result[:transcriptions] : ''
     end.join
+  end
+
+  def enrich_content_with_resolved_maps_coordinates(text)
+    additions = []
+    extract_candidate_maps_urls(text).each do |raw_url|
+      result = Messages::GoogleMapsUrlCoordinatesService.new(url: raw_url).perform
+      next if result.blank?
+
+      additions << "Google Maps link resolves to latitude #{result[:latitude]}, longitude #{result[:longitude]}."
+    end
+    return text if additions.empty?
+
+    "#{text}\n#{additions.join("\n")}"
+  end
+
+  def extract_candidate_maps_urls(text)
+    text.scan(%r{https?://[^\s<>\[\]()'"]+}).filter_map do |raw|
+      url = raw.sub(/[.,;)\]>]+$/, '')
+      url.presence if potential_google_maps_url?(url)
+    end.uniq
+  end
+
+  def potential_google_maps_url?(url)
+    u = url.downcase
+    u.include?('goo.gl/maps') || u.include?('maps.app.goo.gl') ||
+      u.include?('google.com/maps') || u.include?('maps.google.com') ||
+      (u.include?('google.') && u.include?('/maps'))
   end
 end

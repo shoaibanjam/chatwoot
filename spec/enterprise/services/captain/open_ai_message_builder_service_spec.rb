@@ -12,6 +12,23 @@ RSpec.describe Captain::OpenAiMessageBuilderService do
       end
     end
 
+    context 'when message text contains a Google Maps URL' do
+      let(:message) { create(:message, content: 'Meet here https://goo.gl/maps/abc') }
+      let(:maps_service) do
+        instance_double(Messages::GoogleMapsUrlCoordinatesService, perform: { latitude: 1.0, longitude: 2.0 })
+      end
+
+      before do
+        allow(Messages::GoogleMapsUrlCoordinatesService).to receive(:new).with(url: 'https://goo.gl/maps/abc').and_return(maps_service)
+      end
+
+      it 'appends resolved coordinates for the LLM' do
+        expect(service.generate_content).to eq(
+          "Meet here https://goo.gl/maps/abc\nGoogle Maps link resolves to latitude 1.0, longitude 2.0."
+        )
+      end
+    end
+
     context 'when message has no content and no attachments' do
       let(:message) { create(:message, content: nil) }
 

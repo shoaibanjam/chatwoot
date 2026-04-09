@@ -38,9 +38,28 @@ class Captain::OpenAiMessageBuilderService
     transcription = extract_audio_transcriptions(attachments)
     transcription_part = text_part(transcription) if transcription.present?
 
-    attachment_part = text_part('User has shared an attachment') if attachments.where.not(file_type: %i[image audio]).exists?
+    location_content = location_parts(attachments.where(file_type: :location))
 
-    [image_content, transcription_part, attachment_part].flatten.compact
+    other_attachments = attachments.where.not(file_type: %i[image audio location])
+    attachment_part = text_part('User has shared an attachment') if other_attachments.exists?
+
+    [image_content, transcription_part, location_content, attachment_part].flatten.compact
+  end
+
+  def location_parts(location_attachments)
+    location_attachments.map { |attachment| text_part(format_location_for_llm(attachment)) }
+  end
+
+  def format_location_for_llm(attachment)
+    lat = attachment.coordinates_lat
+    lng = attachment.coordinates_long
+    coord_text = "latitude #{lat}, longitude #{lng}"
+    label = attachment.fallback_title.presence
+    if label.present?
+      "User shared a location (#{label}): #{coord_text}."
+    else
+      "User shared a location: #{coord_text}."
+    end
   end
 
   def image_parts(image_attachments)

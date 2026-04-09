@@ -53,12 +53,24 @@ pnpm install
 echo "🔨 Precompiling assets..."
 bundle exec rake assets:precompile
 
-if pm2 list | grep -q "chatwoot"; then
-  echo "🛑 Stopping existing PM2 process..."
+# Match exact app name only: `grep chatwoot` wrongly matched chatwoot-backend /
+# chatwoot-frontend / chatwoot-worker, then `pm2 stop chatwoot` failed (no such app)
+# and set -e aborted the deploy before `pm2 start`.
+echo "🧹 Stopping legacy PM2 apps from ecosystem.config.js if present..."
+for app in chatwoot-backend chatwoot-frontend chatwoot-worker; do
+  if pm2 describe "$app" >/dev/null 2>&1; then
+    echo "   Stopping $app"
+    pm2 stop "$app"
+    pm2 delete "$app"
+  fi
+done
+
+if pm2 describe chatwoot >/dev/null 2>&1; then
+  echo "🛑 Stopping existing PM2 process chatwoot..."
   pm2 stop chatwoot
   pm2 delete chatwoot
 else
-  echo "ℹ️  No existing PM2 process found, skipping stop/delete..."
+  echo "ℹ️  No existing PM2 app named chatwoot, skipping stop/delete..."
 fi
 
 echo "▶️  Starting server with PM2..."

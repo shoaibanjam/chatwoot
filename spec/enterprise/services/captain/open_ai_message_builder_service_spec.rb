@@ -49,6 +49,24 @@ RSpec.describe Captain::OpenAiMessageBuilderService do
         expect(result).not_to include(hash_including(type: 'text', text: 'Hello world'))
       end
     end
+
+    context 'when message has only a location attachment' do
+      let(:message) { create(:message, content: nil) }
+
+      before do
+        attachment = message.attachments.build(
+          account_id: message.account_id,
+          file_type: :location,
+          coordinates_lat: 25.2048,
+          coordinates_long: 55.2708
+        )
+        attachment.save!
+      end
+
+      it 'returns a single string with coordinates for the LLM' do
+        expect(service.generate_content).to eq('User shared a location: latitude 25.2048, longitude 55.2708.')
+      end
+    end
   end
 
   describe '#attachment_parts' do
@@ -84,6 +102,53 @@ RSpec.describe Captain::OpenAiMessageBuilderService do
         audio_attachment # trigger creation
         result = service.send(:attachment_parts, attachments)
         expect(result).to include({ type: 'text', text: 'Audio transcription text' })
+      end
+    end
+
+    context 'with location attachments' do
+      before do
+        attachment = message.attachments.build(
+          account_id: message.account_id,
+          file_type: :location,
+          coordinates_lat: 24.8607,
+          coordinates_long: 67.0011,
+          fallback_title: 'Cafe, Karachi'
+        )
+        attachment.save!
+      end
+
+      it 'includes latitude and longitude for the model' do
+        result = service.send(:attachment_parts, attachments)
+        expect(result).to include(
+          type: 'text',
+          text: 'User shared a location (Cafe, Karachi): latitude 24.8607, longitude 67.0011.'
+        )
+      end
+
+      it 'does not use the generic attachment message for location-only' do
+        result = service.send(:attachment_parts, attachments)
+        expect(result).not_to include({ type: 'text', text: 'User has shared an attachment' })
+      end
+    end
+
+    context 'with location attachments without a place label' do
+      before do
+        attachment = message.attachments.build(
+          account_id: message.account_id,
+          file_type: :location,
+          coordinates_lat: 1.3521,
+          coordinates_long: 103.8198,
+          fallback_title: ''
+        )
+        attachment.save!
+      end
+
+      it 'includes coordinates without a label prefix' do
+        result = service.send(:attachment_parts, attachments)
+        expect(result).to include(
+          type: 'text',
+          text: 'User shared a location: latitude 1.3521, longitude 103.8198.'
+        )
       end
     end
 

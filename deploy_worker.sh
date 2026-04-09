@@ -46,6 +46,11 @@ if ! command -v bundle >/dev/null 2>&1; then
   exit 127
 fi
 
+if ! command -v pnpm >/dev/null 2>&1 || ! command -v node >/dev/null 2>&1; then
+  echo "ERROR: pnpm or node not found after loading shell env. PATH=$PATH" >&2
+  exit 127
+fi
+
 echo "📦 Installing dependencies..."
 bundle install
 pnpm install
@@ -74,7 +79,11 @@ else
 fi
 
 echo "▶️  Starting server with PM2..."
-pm2 start pnpm --name chatwoot --interpreter bash -- start:production
+# pnpm is a Node script; --interpreter bash made bash execute it as shell →
+# "syntax error near unexpected token" in chatwoot-error.log and errored restarts.
+PNPM_BIN="$(command -v pnpm)"
+NODE_BIN="$(command -v node)"
+pm2 start "$PNPM_BIN" --name chatwoot --cwd "$REPO_ROOT" --interpreter "$NODE_BIN" -- start:production
 
 echo "💾 Saving PM2 configuration..."
 pm2 save

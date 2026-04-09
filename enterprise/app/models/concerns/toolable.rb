@@ -87,6 +87,7 @@ module Concerns::Toolable
 
   def add_contact_headers(headers, contact)
     headers['X-Chatwoot-Contact-Id'] = contact[:id].to_s if contact[:id]
+    headers['X-Chatwoot-Contact-Name'] = contact[:name].to_s.strip if contact[:name].present?
     headers['X-Chatwoot-Contact-Email'] = contact[:email].to_s if contact[:email].present?
     headers['X-Chatwoot-Contact-Phone'] = contact[:phone_number].to_s if contact[:phone_number].present?
   end

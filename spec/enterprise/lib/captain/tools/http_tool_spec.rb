@@ -251,6 +251,7 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
                                  },
                                  contact: {
                                    id: contact.id,
+                                   name: contact.name,
                                    email: contact.email,
                                    phone_number: contact.phone_number
                                  }
@@ -273,6 +274,7 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
                   'X-Chatwoot-Conversation-Id' => conversation.id.to_s,
                   'X-Chatwoot-Conversation-Display-Id' => conversation.display_id.to_s,
                   'X-Chatwoot-Contact-Id' => contact.id.to_s,
+                  'X-Chatwoot-Contact-Name' => contact.name,
                   'X-Chatwoot-Contact-Email' => contact.email
                 })
           .to_return(status: 200, body: '{"success": true}')
@@ -282,6 +284,7 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
         expect(WebMock).to have_requested(:get, 'https://example.com/api/data')
           .with(headers: {
                   'X-Chatwoot-Account-Id' => account.id.to_s,
+                  'X-Chatwoot-Contact-Name' => contact.name,
                   'X-Chatwoot-Contact-Email' => contact.email
                 })
       end

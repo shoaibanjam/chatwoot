@@ -46,24 +46,24 @@ jobs:
             echo "--- Deploy (worker runs after sync; avoids self-replacing script bug) ---"
             bash deploy_worker.sh
 
-      # - name: Notify Slack – Deployment Succeeded
-      #   if: success()
-      #   uses: slackapi/slack-github-action@v1.25.0
-      #   with:
-      #     payload: |
-      #       {
-      #         "text": ":white_check_mark: *Converso deployment to Develop successful!* :tada:\nRepository: `${{ github.repository }}`\nBranch: `${{ github.ref_name }}`\nTriggered by: `${{ github.actor }}`\nRun: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>\nVerify Deployment: <https://chatwoot.cybroscloud.com/|chatwoot.cybroscloud.com>"
-      #       }
-      #   env:
-      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - name: Notify Slack – Deployment Succeeded
+        if: success()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": ":white_check_mark: *Converso deployment to Develop successful!* :tada:\nRepository: `${{ github.repository }}`\nBranch: `${{ github.ref_name }}`\nTriggered by: `${{ github.actor }}`\nRun: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>\nVerify Deployment: <https://converso.cybroscloud.com/|converso.cybroscloud.com>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # - name: Notify Slack – Deployment Failed
-      #   if: failure()
-      #   uses: slackapi/slack-github-action@v1.25.0
-      #   with:
-      #     payload: |
-      #       {
-      #         "text": ":x: *Converso deployment to Develop failed!* :warning:\nPlease review the workflow logs.\nRepository: `${{ github.repository }}`\nBranch: `${{ github.ref_name }}`\nTriggered by: `${{ github.actor }}`\nRun: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>"
-      #       }
-      #   env:
-      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - name: Notify Slack – Deployment Failed
+        if: failure()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": ":x: *Converso deployment to Develop failed!* :warning:\nPlease review the workflow logs.\nRepository: `${{ github.repository }}`\nBranch: `${{ github.ref_name }}`\nTriggered by: `${{ github.actor }}`\nRun: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -98,6 +98,9 @@ RSpec.describe MessageTemplates::HookExecutionService do
         create(:message, conversation: conversation, message_type: :incoming)
 
         expect(conversation.reload.status).to eq('open')
+        note = conversation.messages.where(private: true).order(:id).last
+        expect(note).to be_present
+        expect(note.content).to include('Automatic handoff')
       end
     end
   end

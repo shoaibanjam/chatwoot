@@ -1,4 +1,6 @@
 class Captain::Conversation::ResponseBuilderJob < ApplicationJob
+  include Captain::Conversation::ResponseBuilderHandoff
+
   MAX_MESSAGE_LENGTH = 10_000
   MAX_INTERACTIVE_ITEMS = 10
   retry_on ActiveStorage::FileNotFoundError, attempts: 3, wait: 2.seconds
@@ -94,10 +96,12 @@ class Captain::Conversation::ResponseBuilderJob < ApplicationJob
     case action
     when 'handoff'
       I18n.with_locale(@assistant.account.locale) do
+        create_handoff_private_note
         create_handoff_message
         @conversation.bot_handoff!
         send_out_of_office_message_if_applicable
       end
+      @handoff_error = nil
     end
   end
 
@@ -195,6 +199,7 @@ class Captain::Conversation::ResponseBuilderJob < ApplicationJob
 
   def handle_error(error)
     log_error(error)
+    @handoff_error = error
     process_action('handoff')
     true
   end

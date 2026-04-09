@@ -11,6 +11,9 @@ module Captain::ChatResponseHelper
   end
 
   def parse_json_response(content)
+    return content.deep_stringify_keys if content.is_a?(Hash)
+
+    content = content.to_s
     content = content.gsub('```json', '').gsub('```', '')
     content = content.strip
     JSON.parse(content)

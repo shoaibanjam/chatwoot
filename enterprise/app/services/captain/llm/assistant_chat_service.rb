@@ -45,4 +45,10 @@ class Captain::Llm::AssistantChatService < Llm::BaseAiService
   def feature_name
     'assistant'
   end
+
+  def assistant_structured_response_schema
+    return unless LlmConstants.captain_ruby_llm_provider.in?(%i[openai gemini mistral])
+
+    Captain::ResponseSchema
+  end
 end

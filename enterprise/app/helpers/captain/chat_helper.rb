@@ -1,4 +1,4 @@
-module Captain::ChatHelper
+module Captain::ChatHelper # rubocop:disable Metrics/ModuleLength
   include Integrations::LlmInstrumentation
   include Captain::ChatResponseHelper
   include Captain::ChatGenerationRecorder
@@ -25,8 +25,8 @@ module Captain::ChatHelper
 
   def build_chat
     llm_chat = chat(model: @model, temperature: temperature)
-    llm_chat = llm_chat.with_params(response_format: { type: 'json_object' })
-
+    schema = respond_to?(:assistant_structured_response_schema, true) ? assistant_structured_response_schema : nil
+    llm_chat = schema ? llm_chat.with_schema(schema) : llm_chat.with_params(response_format: { type: 'json_object' })
     llm_chat = setup_tools(llm_chat)
     llm_chat = setup_system_instructions(llm_chat)
     setup_event_handlers(llm_chat)

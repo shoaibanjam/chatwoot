@@ -14,11 +14,15 @@ RSpec.describe Captain::Llm::AssistantChatService do
   end
 
   before do
-    create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+    InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_API_KEY').tap do |c|
+      c.value = 'test-key'
+      c.save!
+    end
 
     allow(RubyLLM).to receive(:chat).and_return(mock_chat)
     allow(mock_chat).to receive(:with_temperature).and_return(mock_chat)
     allow(mock_chat).to receive(:with_params).and_return(mock_chat)
+    allow(mock_chat).to receive(:with_schema).and_return(mock_chat)
     allow(mock_chat).to receive(:with_tool).and_return(mock_chat)
     allow(mock_chat).to receive(:with_instructions).and_return(mock_chat)
     allow(mock_chat).to receive(:add_message).and_return(mock_chat)
@@ -128,6 +132,48 @@ RSpec.describe Captain::Llm::AssistantChatService do
 
         service = described_class.new(assistant: assistant, conversation_id: conversation.display_id)
         service.generate_response(message_history: message_history)
+      end
+    end
+  end
+
+  describe 'structured response schema' do
+    let(:message_history) { [{ role: 'user', content: 'Hi' }] }
+
+    context 'when Captain LLM provider is OpenAI' do
+      before do
+        InstallationConfig.find_or_initialize_by(name: LlmConstants::CAPTAIN_LLM_PROVIDER_CONFIG_KEY).tap do |c|
+          c.value = 'openai'
+          c.save!
+        end
+      end
+
+      it 'enforces Captain::ResponseSchema instead of generic json_object' do
+        expect(mock_chat).to receive(:with_schema).with(Captain::ResponseSchema).and_return(mock_chat)
+        expect(mock_chat).not_to receive(:with_params)
+
+        allow(mock_chat).to receive(:ask).and_return(mock_response)
+
+        described_class.new(assistant: assistant, conversation_id: conversation.display_id)
+                       .generate_response(message_history: message_history)
+      end
+    end
+
+    context 'when Captain LLM provider is Ollama' do
+      before do
+        InstallationConfig.find_or_initialize_by(name: LlmConstants::CAPTAIN_LLM_PROVIDER_CONFIG_KEY).tap do |c|
+          c.value = 'ollama'
+          c.save!
+        end
+      end
+
+      it 'uses json_object response format' do
+        expect(mock_chat).to receive(:with_params).with(response_format: { type: 'json_object' }).and_return(mock_chat)
+        expect(mock_chat).not_to receive(:with_schema)
+
+        allow(mock_chat).to receive(:ask).and_return(mock_response)
+
+        described_class.new(assistant: assistant, conversation_id: conversation.display_id)
+                       .generate_response(message_history: message_history)
       end
     end
   end

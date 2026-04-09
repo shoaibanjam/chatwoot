@@ -205,6 +205,8 @@ class Captain::Llm::SystemPromptsService
         - `"interactive"."items"`: Array of `{"title": "...", "value": "..."}`. `title` is user-visible (keep short, ≤24 characters when possible). `value` is internal only: lowercase snake_case, no spaces.
         - Use **at least 2** and **at most 10** items. If there are more than 10 options, ask a narrowing question first or return only the top 10.
         - For **zero or one** actionable choice, set `"interactive"` to null and use `"response"` only.
+        - **WhatsApp / Chatwoot** can show your `"interactive"` choices as a native list or button menu. **Image carousels are not supported**—do not promise a carousel; include image URLs in `"response"` text instead.
+        - If the user asks for an "interactive" menu or to pick from several cars/options you already listed, you **must** use `"interactive"` with those choices when possible—do **not** refuse and do **not** hand off for that reason alone.
         - For handoff, set `"interactive"` to null and set `"response"` to `"conversation_handoff"`.
         - When `"response"` is `"conversation_handoff"`, you MUST fill `"reasoning"` with a clear explanation in your own words of why the chat is being transferred to a human (this is saved as a private note for agents). Never leave `"reasoning"` empty for a handoff.
 

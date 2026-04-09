@@ -343,6 +343,7 @@ RSpec.describe Captain::CustomTool, type: :model do
           },
           contact: {
             id: contact.id,
+            name: contact.name,
             email: contact.email,
             phone_number: contact.phone_number
           }
@@ -373,6 +374,7 @@ RSpec.describe Captain::CustomTool, type: :model do
         headers = tool.build_metadata_headers(state)
 
         expect(headers['X-Chatwoot-Contact-Id']).to eq(contact.id.to_s)
+        expect(headers['X-Chatwoot-Contact-Name']).to eq(contact.name)
         expect(headers['X-Chatwoot-Contact-Email']).to eq(contact.email)
       end
 
@@ -392,6 +394,7 @@ RSpec.describe Captain::CustomTool, type: :model do
         headers = tool.build_metadata_headers(state)
 
         expect(headers['X-Chatwoot-Contact-Id']).to be_nil
+        expect(headers['X-Chatwoot-Contact-Name']).to be_nil
         expect(headers['X-Chatwoot-Contact-Email']).to be_nil
         expect(headers['X-Chatwoot-Account-Id']).to eq(account.id.to_s)
       end
@@ -417,6 +420,14 @@ RSpec.describe Captain::CustomTool, type: :model do
         headers = tool.build_metadata_headers(state)
 
         expect(headers).not_to have_key('X-Chatwoot-Contact-Phone')
+      end
+
+      it 'omits contact name header when name is blank' do
+        state[:contact][:name] = ''
+
+        headers = tool.build_metadata_headers(state)
+
+        expect(headers).not_to have_key('X-Chatwoot-Contact-Name')
       end
     end
 

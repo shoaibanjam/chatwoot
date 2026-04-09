@@ -9,9 +9,24 @@ class Integrations::Captain::ProcessorService < Integrations::BotProcessorServic
 
   def process_response(message, response)
     if response == 'conversation_handoff'
+      record_external_captain_handoff_note(message.conversation)
       message.conversation.bot_handoff!
     else
       create_conversation(message, { content: response })
+    end
+  end
+
+  def record_external_captain_handoff_note(conversation)
+    return unless defined?(Captain::HandoffPrivateNoteService)
+
+    inbox = conversation.inbox
+    assistant = inbox.respond_to?(:captain_assistant) ? inbox.captain_assistant : nil
+    I18n.with_locale(conversation.account.locale) do
+      Captain::HandoffPrivateNoteService.new(
+        conversation: conversation,
+        sender: assistant,
+        content: I18n.t('conversations.captain.handoff_private_note.fallback_external')
+      ).perform
     end
   end
 

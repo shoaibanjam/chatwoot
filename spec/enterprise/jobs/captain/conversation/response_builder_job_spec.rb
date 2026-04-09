@@ -48,6 +48,20 @@ RSpec.describe Captain::Conversation::ResponseBuilderJob, type: :job do
         expect(account.usage_limits[:captain][:responses][:consumed]).to eq(1)
       end
 
+      it 'creates a private note with handoff reason when assistant returns conversation_handoff' do
+        allow(mock_llm_chat_service).to receive(:generate_response).and_return(
+          'response' => 'conversation_handoff',
+          'reasoning' => 'Customer asked to speak with a human.'
+        )
+
+        described_class.perform_now(conversation, assistant)
+
+        note = conversation.messages.where(private: true).order(:id).last
+        expect(note).to be_present
+        expect(note.content).to eq('Customer asked to speak with a human.')
+        expect(conversation.reload.status).to eq('open')
+      end
+
       it 'creates an input_select message when interactive has two or more items' do
         allow(mock_llm_chat_service).to receive(:generate_response).and_return(
           'response' => 'Pick one.',

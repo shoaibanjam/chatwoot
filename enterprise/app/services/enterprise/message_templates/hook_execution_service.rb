@@ -58,14 +58,27 @@ module Enterprise::MessageTemplates::HookExecutionService
     return unless conversation.pending?
 
     Rails.logger.info("Captain limit exceeded, performing handoff mid-conversation for conversation: #{conversation.id}")
+    create_captain_quota_exceeded_handoff_messages
+    conversation.bot_handoff!
+    send_out_of_office_message_after_handoff
+  end
+
+  def create_captain_quota_exceeded_handoff_messages
+    assistant = inbox.captain_assistant
+    locale = assistant&.account&.locale || conversation.account.locale
+    I18n.with_locale(locale) do
+      Captain::HandoffPrivateNoteService.new(
+        conversation: conversation,
+        sender: assistant,
+        content: I18n.t('conversations.captain.handoff_private_note.fallback_system_limit')
+      ).perform
+    end
     conversation.messages.create!(
       message_type: :outgoing,
       account_id: conversation.account.id,
       inbox_id: conversation.inbox.id,
       content: 'Transferring to another agent for further assistance.'
     )
-    conversation.bot_handoff!
-    send_out_of_office_message_after_handoff
   end
 
   def send_out_of_office_message_after_handoff

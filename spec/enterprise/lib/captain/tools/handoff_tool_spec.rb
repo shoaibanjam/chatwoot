@@ -21,7 +21,7 @@ RSpec.describe Captain::Tools::HandoffTool, type: :model do
       expect(tool.parameters).to have_key(:reason)
       expect(tool.parameters[:reason].name).to eq(:reason)
       expect(tool.parameters[:reason].type).to eq('string')
-      expect(tool.parameters[:reason].description).to eq('The reason why handoff is needed (optional)')
+      expect(tool.parameters[:reason].description).to include('private note')
       expect(tool.parameters[:reason].required).to be false
     end
   end
@@ -75,14 +75,14 @@ RSpec.describe Captain::Tools::HandoffTool, type: :model do
       end
 
       context 'without reason provided' do
-        it 'creates a private note with nil content and hands off conversation' do
+        it 'creates a private note explaining handoff and hands off conversation' do
           expect do
             result = tool.perform(tool_context)
             expect(result).to eq('Conversation handed off to human support team')
           end.to change(Message, :count).by(1)
 
           created_message = Message.last
-          expect(created_message.content).to be_nil
+          expect(created_message.content).to eq(I18n.t('conversations.captain.handoff_private_note.fallback_no_ai_reason'))
         end
 
         it 'logs tool usage with default reason' do

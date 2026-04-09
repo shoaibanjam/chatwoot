@@ -1,6 +1,8 @@
 class Captain::Tools::HandoffTool < Captain::Tools::BasePublicTool
   description 'Hand off the conversation to a human agent when unable to assist further'
-  param :reason, type: 'string', desc: 'The reason why handoff is needed (optional)', required: false
+  param :reason, type: 'string',
+                 desc: 'Explain in your own words why you are handing off (stored as a private note for the team). Be specific.',
+                 required: false
 
   def perform(tool_context, reason: nil)
     conversation = find_conversation(tool_context.state)
@@ -24,15 +26,15 @@ class Captain::Tools::HandoffTool < Captain::Tools::BasePublicTool
   private
 
   def trigger_handoff(conversation, reason)
-    # post the reason as a private note
-    conversation.messages.create!(
-      message_type: :outgoing,
-      private: true,
+    note_text = reason.to_s.strip.presence
+    note_text ||= I18n.with_locale(@assistant.account.locale) do
+      I18n.t('conversations.captain.handoff_private_note.fallback_no_ai_reason')
+    end
+    Captain::HandoffPrivateNoteService.new(
+      conversation: conversation,
       sender: @assistant,
-      account: conversation.account,
-      inbox: conversation.inbox,
-      content: reason
-    )
+      content: note_text
+    ).perform
 
     # Trigger the bot handoff (sets status to open + dispatches events)
     conversation.bot_handoff!

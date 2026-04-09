@@ -206,6 +206,7 @@ class Captain::Llm::SystemPromptsService
         - Use **at least 2** and **at most 10** items. If there are more than 10 options, ask a narrowing question first or return only the top 10.
         - For **zero or one** actionable choice, set `"interactive"` to null and use `"response"` only.
         - For handoff, set `"interactive"` to null and set `"response"` to `"conversation_handoff"`.
+        - When `"response"` is `"conversation_handoff"`, you MUST fill `"reasoning"` with a clear explanation in your own words of why the chat is being transferred to a human (this is saved as a private note for agents). Never leave `"reasoning"` empty for a handoff.
 
         ```json
         {

@@ -217,6 +217,11 @@ en:
   conversations:
     captain:
       handoff: 'Transferring to another agent for further assistance.'
+      handoff_private_note:
+        fallback_no_ai_reason: 'Handoff to a human agent. The assistant did not provide a reason.'
+        fallback_error: 'Handoff after a processing error (%{error_class}).'
+        fallback_system_limit: 'Automatic handoff: Captain did not run (response quota exhausted or Captain inactive on this inbox).'
+        fallback_external: 'Handoff from external Captain integration (no reason in API payload).'
     messages:
       instagram_story_content: '%{story_sender} mentioned you in the story: '
       instagram_deleted_story_content: This story is no longer available.

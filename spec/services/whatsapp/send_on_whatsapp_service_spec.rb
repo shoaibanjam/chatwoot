@@ -381,4 +381,41 @@ describe Whatsapp::SendOnWhatsappService do
       end
     end
   end
+
+  describe 'carousel async normalization' do
+    let!(:whatsapp_channel) do
+      create(:channel_whatsapp, provider: 'whatsapp_cloud', sync_templates: false, validate_provider_config: false)
+    end
+    let!(:contact_inbox) { create(:contact_inbox, inbox: whatsapp_channel.inbox, source_id: '123456789') }
+    let!(:conversation) { create(:conversation, contact_inbox: contact_inbox, inbox: whatsapp_channel.inbox) }
+
+    before do
+      stub_request(:post, %r{\Ahttps://waba\.360dialog\.io/v1/configs/webhook\z}).to_return(status: 200, body: '{}')
+      create(:message, message_type: :incoming, content: 'in', conversation: conversation, account: conversation.account)
+    end
+
+    it 'enqueues NormalizeCarouselMediaJob when carousel media normalization is pending' do
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with('WHATSAPP_CAROUSEL_MEDIA_S3_BUCKET').and_return('cw-carousel')
+      allow(ENV).to receive(:[]).with('WHATSAPP_CAROUSEL_MEDIA_PUBLIC_URL_BASE').and_return('https://cdn.example.com')
+
+      message = create(:message,
+                       message_type: :outgoing,
+                       content_type: :cards,
+                       content: 'Pick',
+                       conversation: conversation,
+                       account: conversation.account,
+                       content_attributes: {
+                         'items' => [
+                           { 'title' => 'A', 'media_url' => 'https://ex.com/a.webp',
+                             'actions' => [{ 'type' => 'link', 'text' => 'Book', 'uri' => 'https://ajarlee.om/a' }] },
+                           { 'title' => 'B', 'media_url' => 'https://ex.com/b.webp',
+                             'actions' => [{ 'type' => 'link', 'text' => 'Book', 'uri' => 'https://ajarlee.om/b' }] }
+                         ]
+                       })
+
+      expect(Whatsapp::NormalizeCarouselMediaJob).to receive(:perform_later).with(message.id)
+      described_class.new(message: message).perform
+    end
+  end
 end

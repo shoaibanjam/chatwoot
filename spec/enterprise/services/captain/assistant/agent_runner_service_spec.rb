@@ -13,7 +13,9 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
   let(:mock_runner) { instance_double(Agents::Runner) }
   let(:mock_agent) { instance_double(Agents::Agent) }
   let(:mock_scenario_agent) { instance_double(Agents::Agent) }
-  let(:mock_result) { instance_double(Agents::RunResult, output: { 'response' => 'Test response' }, context: nil) }
+  let(:mock_result) do
+    instance_double(Agents::RunResult, output: { 'response' => 'Test response' }, context: nil, error: nil, messages: [])
+  end
 
   let(:message_history) do
     [
@@ -103,6 +105,92 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
       expect(result).to eq({ 'response' => 'Test response', 'agent_name' => nil })
     end
 
+    context 'when a tool message includes data.captainCarousel' do
+      let(:carousel_tool_json) do
+        {
+          code: 200,
+          data: {
+            captainCarousel: {
+              body: 'Book your preferred car from here.',
+              items: [
+                {
+                  title: 'Car A',
+                  value: 'https://ajarlee.om/car/a',
+                  media_url: 'https://example.com/a.webp',
+                  description: 'OMR 7/day'
+                },
+                {
+                  title: 'Car B',
+                  value: 'https://ajarlee.om/car/b',
+                  media_url: 'https://example.com/b.webp',
+                  description: 'OMR 8/day'
+                }
+              ]
+            }
+          }
+        }.to_json
+      end
+
+      let(:mock_result) do
+        instance_double(
+          Agents::RunResult,
+          output: { 'response' => 'Model filler text', 'reasoning' => 'ok' },
+          messages: [{ role: :tool, content: carousel_tool_json }],
+          context: nil,
+          error: nil
+        )
+      end
+
+      it 'merges interactive from captainCarousel and prefers carousel body as response text' do
+        result = service.generate_response(message_history: message_history)
+
+        expect(result['response']).to eq('Book your preferred car from here.')
+        expect(result['interactive']).to include(
+          'body' => 'Book your preferred car from here.',
+          'items' => array_including(
+            hash_including('title' => 'Car A', 'value' => 'https://ajarlee.om/car/a', 'media_url' => 'https://example.com/a.webp')
+          )
+        )
+        expect(result['interactive']['items'].size).to eq(2)
+      end
+    end
+
+    context 'when runner reports an error but a tool message includes captainCarousel' do
+      let(:carousel_tool_json) do
+        {
+          data: {
+            captainCarousel: {
+              body: 'Book your preferred car from here.',
+              items: [
+                { title: 'Car A', value: 'https://ajarlee.om/car/a', mediaUrl: 'https://example.com/a.webp' },
+                { title: 'Car B', bookingUrl: 'https://ajarlee.om/car/b', media_url: 'https://example.com/b.webp' }
+              ]
+            }
+          }
+        }.to_json
+      end
+
+      let(:mock_result) do
+        instance_double(
+          Agents::RunResult,
+          output: { 'response' => 'conversation_handoff' },
+          messages: [{ role: :tool, content: carousel_tool_json }],
+          context: { current_agent: 'Assistant' },
+          error: StandardError.new('Runner exhausted')
+        )
+      end
+
+      it 'returns carousel instead of handoff and skips exception tracker' do
+        expect(ChatwootExceptionTracker).not_to receive(:new)
+
+        result = service.generate_response(message_history: message_history)
+
+        expect(result['response']).to eq('Book your preferred car from here.')
+        expect(result['agent_name']).to eq('Assistant')
+        expect(result['interactive']['items'].size).to eq(2)
+      end
+    end
+
     context 'when no scenarios are enabled' do
       before do
         scenarios_relation = instance_double(Captain::Scenario)
@@ -119,7 +207,9 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
     end
 
     context 'when agent result is a string' do
-      let(:mock_result) { instance_double(Agents::RunResult, output: 'Simple string response', context: nil) }
+      let(:mock_result) do
+        instance_double(Agents::RunResult, output: 'Simple string response', context: nil, error: nil, messages: [])
+      end
 
       it 'formats string response correctly' do
         result = service.generate_response(message_history: message_history)

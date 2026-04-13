@@ -60,7 +60,16 @@ class Captain::Scenario < ApplicationRecord
   end
 
   def agent_tools
-    resolved_tools.map { |tool| resolve_tool_instance(tool) }
+    resolved_tools.filter_map do |tool_meta|
+      instance = resolve_tool_instance(tool_meta)
+      if instance.nil?
+        Rails.logger.warn(
+          "[Captain] Scenario #{id}: skipping unresolved tool #{tool_meta[:id].inspect} " \
+          '(custom tool missing/disabled or built-in class not found)'
+        )
+      end
+      instance
+    end
   end
 
   def resolved_instructions

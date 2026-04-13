@@ -38,6 +38,11 @@ class Whatsapp::SendOnWhatsappService < Base::SendOnChannelService
   end
 
   def send_session_message
+    if Whatsapp::CarouselMediaNormalizer.pending?(message)
+      Whatsapp::NormalizeCarouselMediaJob.perform_later(message.id)
+      return
+    end
+
     message_id = channel.send_message(message.conversation.contact_inbox.source_id, message)
     message.update!(source_id: message_id) if message_id.present?
   end

@@ -74,19 +74,29 @@ class Captain::Assistant::AgentRunnerService
   def process_agent_result(result)
     Rails.logger.info "[Captain V2] Agent result: #{result.inspect}"
 
-    # Check for errors in the result
-    if result.error
-      Rails.logger.error "[Captain V2] Agent error: #{result.error.class} - #{result.error.message}"
-      ChatwootExceptionTracker.new(result.error, account: @assistant.account).capture_exception
-      return error_response(result.error.message)
-    end
+    return handle_runner_error(result) if result.error
 
     response = format_response(result.output)
+    merge_captain_carousel_from_tools!(response, result.messages)
 
-    # Extract agent name from context
     response['agent_name'] = result.context&.dig(:current_agent)
 
     response
+  end
+
+  def handle_runner_error(result)
+    recovered = response_from_captain_carousel_or_nil(result.messages, result.context)
+    if recovered
+      Rails.logger.warn(
+        '[Captain V2] Runner error but captainCarousel present; sending carousel instead of handoff. ' \
+        "#{result.error.class}: #{result.error.message}"
+      )
+      return recovered
+    end
+
+    Rails.logger.error "[Captain V2] Agent error: #{result.error.class} - #{result.error.message}"
+    ChatwootExceptionTracker.new(result.error, account: @assistant.account).capture_exception
+    error_response(result.error.message)
   end
 
   def format_response(output)
@@ -96,6 +106,32 @@ class Captain::Assistant::AgentRunnerService
     {
       'response' => output.to_s,
       'reasoning' => 'Processed by agent'
+    }
+  end
+
+  # When a custom tool returns JSON with data.captainCarousel, use it as the structured interactive
+  # payload so WhatsApp carousel works without relying on the model to copy fields from tool output.
+  def merge_captain_carousel_from_tools!(response, messages)
+    carousel = Captain::Assistant::CaptainCarouselToolExtractor.call(messages)
+    return if carousel.blank?
+
+    response['interactive'] = carousel
+    body = carousel['body'].presence
+    response['response'] = body if body.present?
+    response['reasoning'] = 'captainCarousel from tool result' if response['reasoning'].blank?
+  end
+
+  def response_from_captain_carousel_or_nil(messages, context)
+    carousel = Captain::Assistant::CaptainCarouselToolExtractor.call(messages)
+    return nil if carousel.blank?
+
+    body = carousel['body'].to_s.strip.presence ||
+           I18n.t('conversations.captain.carousel_fallback_body')
+    {
+      'response' => body,
+      'interactive' => carousel,
+      'reasoning' => 'captainCarousel from tool result (after runner error)',
+      'agent_name' => context&.dig(:current_agent)
     }
   end
 

@@ -216,6 +216,7 @@ en:
     no_content: 'No content'
   conversations:
     captain:
+      carousel_fallback_body: 'Choose an option from the carousel below.'
       handoff: 'Transferring to another agent for further assistance.'
       handoff_private_note:
         fallback_no_ai_reason: 'Handoff to a human agent. The assistant did not provide a reason.'
@@ -230,6 +231,7 @@ en:
       deleted: This message was deleted
       whatsapp:
         list_button_label: 'Choose an item'
+        carousel_cta_default: 'Book now'
       delivery_status:
         error_code: 'Error code: %{error_code}'
     activity:

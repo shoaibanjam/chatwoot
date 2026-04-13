@@ -1,6 +1,22 @@
 require 'agents'
 
 class Captain::Tools::BasePublicTool < Agents::Tool
+  class << self
+    # RubyLLM registers tools by Tool#name. The default derives from the full constant path
+    # (e.g. captain--tools--faq_lookup), while prompts and models usually emit the short id from
+    # config/agents/tools.yml (e.g. faq_lookup). A mismatch yields tools[name] == nil and
+    # RubyLLM raises NoMethodError: undefined method `call' for nil.
+    def captain_tool_id
+      demod = name.demodulize
+      base = demod.delete_suffix('Tool')
+      base.underscore.tr('-', '_')
+    end
+  end
+
+  def name
+    self.class.captain_tool_id
+  end
+
   def initialize(assistant)
     @assistant = assistant
     super()

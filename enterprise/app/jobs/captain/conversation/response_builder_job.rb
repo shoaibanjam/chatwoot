@@ -1,3 +1,4 @@
+# rubocop:disable Metrics/ClassLength -- Captain response paths (V2, handoff, WhatsApp carousel) live together
 class Captain::Conversation::ResponseBuilderJob < ApplicationJob
   include Captain::Conversation::ResponseBuilderHandoff
 
@@ -117,7 +118,9 @@ class Captain::Conversation::ResponseBuilderJob < ApplicationJob
 
   def create_messages
     items = normalized_interactive_items
-    if items.size > 1
+    if items.size > 1 && whatsapp_carousel_eligible?(items)
+      create_whatsapp_carousel_outgoing_message(items)
+    elsif items.size > 1
       create_interactive_outgoing_message(items)
     else
       text = plain_response_text
@@ -148,7 +151,58 @@ class Captain::Conversation::ResponseBuilderJob < ApplicationJob
     value = h[:value].to_s.strip
     return nil if title.blank? || value.blank?
 
-    { 'title' => title, 'value' => value }
+    item = { 'title' => title, 'value' => value }
+    %w[media_url description].each do |key|
+      str = h[key].to_s.strip
+      item[key] = str if str.present?
+    end
+    item
+  end
+
+  def whatsapp_carousel_eligible?(items)
+    return false unless @inbox.whatsapp?
+
+    return false if items.size < Whatsapp::InteractiveCarouselPayloadBuilder::MIN_CARDS
+
+    items.all? do |i|
+      i['media_url'].present? &&
+        i['value'].to_s.match?(%r{\Ahttps?://}i)
+    end
+  end
+
+  def create_whatsapp_carousel_outgoing_message(items)
+    body_text = interactive_body_text
+    validate_message_content!(body_text)
+    card_items = build_captain_carousel_items(items)
+
+    additional_attrs = {}
+    agent_name = @response.with_indifferent_access[:agent_name]
+    additional_attrs[:agent_name] = agent_name if agent_name.present?
+
+    @conversation.messages.create!(
+      message_type: :outgoing,
+      account_id: account.id,
+      inbox_id: inbox.id,
+      sender: @assistant,
+      content: body_text,
+      content_type: :cards,
+      content_attributes: { 'items' => card_items },
+      additional_attributes: additional_attrs
+    )
+  end
+
+  def build_captain_carousel_items(items)
+    cta_label = I18n.t('conversations.messages.whatsapp.carousel_cta_default')
+    items.map do |i|
+      {
+        'title' => i['title'],
+        'description' => i['description'].to_s,
+        'media_url' => i['media_url'],
+        'actions' => [
+          { 'type' => 'link', 'text' => cta_label, 'uri' => i['value'] }
+        ]
+      }
+    end
   end
 
   def create_interactive_outgoing_message(items)
@@ -212,3 +266,4 @@ class Captain::Conversation::ResponseBuilderJob < ApplicationJob
     account.feature_enabled?('captain_integration_v2')
   end
 end
+# rubocop:enable Metrics/ClassLength

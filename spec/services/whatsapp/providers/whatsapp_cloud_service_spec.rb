@@ -183,6 +183,149 @@ describe Whatsapp::Providers::WhatsappCloudService do
           ).to_return(status: 200, body: whatsapp_response.to_json, headers: response_headers)
         expect(service.send_message('+123456789', message)).to eq 'message_id'
       end
+
+      it 'sends interactive media carousel for cards with two link actions' do
+        items = [
+          {
+            title: 'Car A',
+            description: 'OMR 10/day',
+            media_url: 'https://example.com/a.jpg',
+            actions: [{ type: 'link', text: 'Book now', uri: 'https://ajarlee.om/car/a' }]
+          },
+          {
+            title: 'Car B',
+            description: 'OMR 12/day',
+            media_url: 'https://example.com/b.jpg',
+            actions: [{ type: 'link', text: 'Book now', uri: 'https://ajarlee.om/car/b' }]
+          }
+        ]
+        message = create(:message, message_type: :outgoing, content: 'Pick a vehicle',
+                                   inbox: whatsapp_channel.inbox, content_type: 'cards',
+                                   content_attributes: { items: items })
+
+        stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/messages')
+          .with(
+            body: a_string_including(
+              '"type":"carousel"',
+              'https://example.com/a.jpg',
+              'https://ajarlee.om/car/a'
+            ),
+            headers: { 'Content-Type' => 'application/json' }
+          )
+          .to_return(status: 200, body: whatsapp_response.to_json, headers: response_headers)
+
+        expect(service.send_message('+123456789', message)).to eq 'message_id'
+      end
+
+      it 'skips non-png/jpeg media_url entries and sends carousel only for allowed images' do
+        items = [
+          {
+            title: 'WebP car',
+            description: 'skip',
+            media_url: 'https://example.com/a.webp',
+            actions: [{ type: 'link', text: 'Book', uri: 'https://ajarlee.om/car/a' }]
+          },
+          {
+            title: 'JPEG car',
+            description: 'keep',
+            media_url: 'https://example.com/b.JPEG',
+            actions: [{ type: 'link', text: 'Book', uri: 'https://ajarlee.om/car/b' }]
+          },
+          {
+            title: 'PNG car',
+            description: 'keep',
+            media_url: 'https://example.com/c.png?v=1',
+            actions: [{ type: 'link', text: 'Book', uri: 'https://ajarlee.om/car/c' }]
+          }
+        ]
+        message = create(:message, message_type: :outgoing, content: 'Pick a vehicle',
+                                   inbox: whatsapp_channel.inbox, content_type: 'cards',
+                                   content_attributes: { items: items })
+
+        stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/messages')
+          .with(
+            body: a_string_including(
+              '"type":"carousel"',
+              'https://example.com/b.JPEG',
+              'https://example.com/c.png?v=1',
+              'https://ajarlee.om/car/b',
+              'https://ajarlee.om/car/c'
+            ),
+            headers: { 'Content-Type' => 'application/json' }
+          )
+          .to_return(status: 200, body: whatsapp_response.to_json, headers: response_headers)
+
+        expect(service.send_message('+123456789', message)).to eq 'message_id'
+        expect(WebMock).to(
+          have_requested(:post, 'https://graph.facebook.com/v13.0/123456789/messages').with do |req|
+            req.body.include?('https://example.com/b.JPEG') &&
+              req.body.include?('https://example.com/c.png?v=1') &&
+              req.body.exclude?('https://example.com/a.webp')
+          end
+        )
+      end
+
+      it 'falls back to text when fewer than two cards remain after dropping non-png/jpeg media' do
+        message = create(:message, message_type: :outgoing, content: 'Only webp',
+                                   inbox: whatsapp_channel.inbox, content_type: 'cards',
+                                   content_attributes: {
+                                     items: [
+                                       {
+                                         title: 'A',
+                                         media_url: 'https://example.com/a.webp',
+                                         actions: [{ type: 'link', text: 'Book', uri: 'https://example.com/a' }]
+                                       },
+                                       {
+                                         title: 'B',
+                                         media_url: 'https://example.com/b.webp',
+                                         actions: [{ type: 'link', text: 'Book', uri: 'https://example.com/b' }]
+                                       }
+                                     ]
+                                   })
+
+        stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/messages')
+          .with(
+            body: {
+              messaging_product: 'whatsapp',
+              context: nil,
+              to: '+123456789',
+              text: { body: 'Only webp' },
+              type: 'text'
+            }.to_json
+          )
+          .to_return(status: 200, body: whatsapp_response.to_json, headers: response_headers)
+
+        expect(service.send_message('+123456789', message)).to eq 'message_id'
+      end
+
+      it 'falls back to text when cards payload cannot build a carousel' do
+        message = create(:message, message_type: :outgoing, content: 'Only one',
+                                   inbox: whatsapp_channel.inbox, content_type: 'cards',
+                                   content_attributes: {
+                                     items: [
+                                       {
+                                         title: 'Solo',
+                                         description: 'x',
+                                         media_url: 'https://example.com/a.jpg',
+                                         actions: [{ type: 'link', text: 'Book', uri: 'https://example.com/b' }]
+                                       }
+                                     ]
+                                   })
+
+        stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/messages')
+          .with(
+            body: {
+              messaging_product: 'whatsapp',
+              context: nil,
+              to: '+123456789',
+              text: { body: 'Only one' },
+              type: 'text'
+            }.to_json
+          )
+          .to_return(status: 200, body: whatsapp_response.to_json, headers: response_headers)
+
+        expect(service.send_message('+123456789', message)).to eq 'message_id'
+      end
     end
   end
 

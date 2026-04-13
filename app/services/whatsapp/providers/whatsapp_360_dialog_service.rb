@@ -3,6 +3,8 @@ class Whatsapp::Providers::Whatsapp360DialogService < Whatsapp::Providers::BaseS
     @message = message
     if message.attachments.present?
       send_attachment_message(phone_number, message)
+    elsif message.content_type == 'cards'
+      send_interactive_carousel_message(phone_number, message)
     elsif message.content_type == 'input_select'
       send_interactive_text_message(phone_number, message)
     else
@@ -121,6 +123,25 @@ class Whatsapp::Providers::Whatsapp360DialogService < Whatsapp::Providers::BaseS
         interactive: payload,
         type: 'interactive'
       }.to_json
+    )
+
+    process_response(response, message)
+  end
+
+  def send_interactive_carousel_message(phone_number, message)
+    interactive_payload = build_interactive_carousel_payload(message)
+    return send_text_message(phone_number, message) if interactive_payload.blank?
+
+    request_body = {
+      to: phone_number,
+      type: 'interactive',
+      interactive: interactive_payload
+    }
+
+    response = HTTParty.post(
+      "#{api_base_path}/messages",
+      headers: api_headers,
+      body: request_body.to_json
     )
 
     process_response(response, message)

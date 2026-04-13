@@ -1,9 +1,12 @@
+# rubocop:disable Metrics/ClassLength -- provider mirrors Cloud API surface (templates, typing, carousel, etc.)
 class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseService
   def send_message(phone_number, message)
     @message = message
 
     if message.attachments.present?
       send_attachment_message(phone_number, message)
+    elsif message.content_type == 'cards'
+      send_interactive_carousel_message(phone_number, message)
     elsif message.content_type == 'input_select'
       send_interactive_text_message(phone_number, message)
     else
@@ -226,4 +229,28 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
 
     process_response(response, message)
   end
+
+  def send_interactive_carousel_message(phone_number, message)
+    interactive_payload = build_interactive_carousel_payload(message)
+    return send_text_message(phone_number, message) if interactive_payload.blank?
+
+    request_body = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: phone_number,
+      type: 'interactive',
+      interactive: interactive_payload
+    }
+    ctx = whatsapp_reply_context(message)
+    request_body[:context] = ctx if ctx.present?
+
+    response = HTTParty.post(
+      "#{phone_id_path}/messages",
+      headers: api_headers,
+      body: request_body.to_json
+    )
+
+    process_response(response, message)
+  end
 end
+# rubocop:enable Metrics/ClassLength

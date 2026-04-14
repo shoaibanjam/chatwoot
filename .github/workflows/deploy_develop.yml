@@ -34,7 +34,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          command_timeout: 25m
+          command_timeout: 55m
           script: |
             set -e
             cd /var/www/chatwoot
@@ -43,8 +43,11 @@ jobs:
             git checkout develop
             git reset --hard origin/develop
             git clean -fd
-            echo "--- Deploy (worker runs after sync; avoids self-replacing script bug) ---"
-            bash deploy_worker.sh
+            echo "--- Docker: build & run (docker-compose.production.yaml) ---"
+            docker compose -f docker-compose.production.yaml build --pull
+            docker compose -f docker-compose.production.yaml up -d --remove-orphans
+            echo "--- Docker: prune unused old images ---"
+            docker image prune -af
 
       - name: Notify Slack – Deployment Succeeded
         if: success()

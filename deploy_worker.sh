@@ -79,11 +79,8 @@ else
 fi
 
 echo "▶️  Starting server with PM2..."
-# pnpm is a Node script; --interpreter bash made bash execute it as shell →
-# "syntax error near unexpected token" in chatwoot-error.log and errored restarts.
-PNPM_BIN="$(command -v pnpm)"
-NODE_BIN="$(command -v node)"
-pm2 start "$PNPM_BIN" --name chatwoot --cwd "$REPO_ROOT" --interpreter "$NODE_BIN" -- start:production
+# Run through bash to support both pnpm shell shims and JS entrypoints.
+pm2 start bash --name chatwoot --cwd "$REPO_ROOT" -- -lc "pnpm start:production"
 
 echo "💾 Saving PM2 configuration..."
 pm2 save
